@@ -84,22 +84,23 @@ function New-ZeroTrustPartnerAdminLinkCsv
 
 }
 
-function New-ZeroTrustPartnerAdminLinkPartnerIdentity {
+function New-ZeroTrustPartnerAdminLinkPartnerIdentity 
+{
     param (
         [string] $Name = "Microsoft-Partner-Admin-Link-Identity"
     )
 
     Write-Host "Login with an account that has permissions to manage AAD applications"
     Connect-AzAccount
+    Get-AzContext
+    Read-Host "Press Return to Create the PAL Identity in the above tenant. Ctrl-C to Exit."
 
     $domain = (Get-AzTenant -TenantId (Get-AzContext).Tenant.Id).Domains | Select-Object -First 1
 
-    $aadApp = New-AzADApplication -DisplayName $Name -IdentifierUris @("https://$domain/$Name") -AvailableToOtherTenants
+    $aadApp = New-AzADApplication -DisplayName $Name -IdentifierUris @("https://$domain/$Name") -AvailableToOtherTenants $true
 
     Write-Host "Partner Admin Link ID: $($aadApp.ApplicationId)"
 }
-
-
 
 # Write-Host "Ensuring that Az PowerShell modules are available"
 # if (!(Get-Module -ListAvailable Az)) {
