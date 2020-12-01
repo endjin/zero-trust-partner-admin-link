@@ -8,7 +8,7 @@ This repository provides an approach for configuring Partner Admin Link in a Zer
 
 ## Licenses
 
-[![GitHub license](https://img.shields.io/badge/License-Apache%202-blue.svg)](https://raw.githubusercontent.com/endjin/Stacker/master/LICENSE)
+[![GitHub license](https://img.shields.io/badge/License-Apache%202-blue.svg)](https://github.com/endjin/zero-trust-partner-admin-link/blob/main/LICENSE)
 
 This project is available under the Apache 2.0 open source license.
 
