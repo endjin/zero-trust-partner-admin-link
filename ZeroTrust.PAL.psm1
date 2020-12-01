@@ -44,7 +44,7 @@ function Set-ZeroTrustPartnerAdminLink
 
     # Create a service principal associated with partner identity
     $customerSp = New-AzADServicePrincipal -DisplayName "$PartnerName Partner Admin Link - DO NOT DELETE" -ApplicationId $PartnerIdentityAppId -SkipAssignment
-    $credential = New-AzADServicePrincipalCredential -ObjectId $customerSp.Id
+    $customerSpCredential = New-AzADServicePrincipalCredential -ObjectId $customerSp.Id
 
 
     # Assign the PAL to each of the required subscriptions
@@ -54,15 +54,16 @@ function Set-ZeroTrustPartnerAdminLink
         New-AzRoleAssignment -ObjectId $customerSp.Id -RoleDefinitionName "Contributor" -Scope "/subscriptions/$_"
     }
 
+
     # Login with the above service principal and associate the account to the specified MS Partner ID
     if (!(Get-Module -ListAvailable Az.ManagementPartner)) {
         Install-Module Az.ManagementPartner -Repository PSGallery -Force -Scope CurrentUser
     }
-    Connect-AzAccount -ServicePrincipal -Credential $credential
+    [pscredential]$credential = New-Object System.Management.Automation.PSCredential ($customerSp.ApplicationId, $customerSpCredential.Secret)
+    Connect-AzAccount -ServicePrincipal -Credential $credential -Tenant (Get-AzContext).Tenant
     New-AzManagementPartner -PartnerId $MpnId
 
-    # Delete the service principal credential 
-    # Remove-AzADServicePrincipalCredential -
+    # TODO: Delete the service principal credential 
 }
 
 function New-ZeroTrustPartnerAdminLinkCsv
@@ -87,7 +88,11 @@ function New-ZeroTrustPartnerAdminLinkCsv
 function New-ZeroTrustPartnerAdminLinkPartnerIdentity 
 {
     param (
-        [string] $Name = "Microsoft-Partner-Admin-Link-Identity"
+        [Parameter(Mandatory=$true)]
+        [string] $PartnerName,
+
+        [Parameter()]
+        [string] $AppName = "Microsoft-Partner-Admin-Link-Identity"
     )
 
     Write-Host "Login with an account that has permissions to manage AAD applications"
@@ -97,7 +102,8 @@ function New-ZeroTrustPartnerAdminLinkPartnerIdentity
 
     $domain = (Get-AzTenant -TenantId (Get-AzContext).Tenant.Id).Domains | Select-Object -First 1
 
-    $aadApp = New-AzADApplication -DisplayName $Name -IdentifierUris @("https://$domain/$Name") -AvailableToOtherTenants $true
+    $name = "$AppName-$PartnerName"
+    $aadApp = New-AzADApplication -DisplayName $name -IdentifierUris @("https://$domain/$Name") -AvailableToOtherTenants $true
 
     Write-Host "Partner Admin Link ID: $($aadApp.ApplicationId)"
 }
