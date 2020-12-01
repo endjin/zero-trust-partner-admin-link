@@ -2,11 +2,11 @@
 
 ## Status
 
-What is the status, such as proposed, accepted, rejected, deprecated, superseded, etc.?
+Proposed
 
 ## Context
 
-What is the issue that we're seeing that is motivating this decision or change?
+Some clients who operate in regulated industries or offer SaaS products to their end customers, require Zero Trust environments; meaning that 3rd parties (including Microsoft Partners) should not have access to any environment which contains customer data. This requirement is often backed by contracts with the clients' end customer. Although this offers benefits to the 3rd parties around mitigating risk and liability, and limits GDPR responsibilities, it causes problems with access rights based attribtuion of Azure Consumed Revenue (ACR), required for partner competency consumption targets.
 
 ## Decision
 
