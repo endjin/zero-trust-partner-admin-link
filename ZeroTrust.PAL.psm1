@@ -98,3 +98,10 @@ function New-ZeroTrustPartnerAdminLinkPartnerIdentity {
 
     Write-Host "Partner Admin Link ID: $($aadApp.ApplicationId)"
 }
+
+
+
+# Write-Host "Ensuring that Az PowerShell modules are available"
+# if (!(Get-Module -ListAvailable Az)) {
+#     Install-Module Az -AllowClobber -Repository PSGallery -Force -Scope CurrentUser
+# }
