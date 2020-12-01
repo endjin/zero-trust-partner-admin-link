@@ -80,6 +80,8 @@ function New-ZeroTrustPartnerAdminLinkCsv
 
     $subscriptions | Export-Csv $Path
 
+    Write-Host "Generated .csv file: $Path"
+
 }
 
 function New-ZeroTrustPartnerAdminLinkPartnerIdentity {
