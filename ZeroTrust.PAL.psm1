@@ -1,3 +1,101 @@
+Function New-ZeroTrustPartnerAdminLinkPartnerIdentity 
+{
+    <#
+    .SYNOPSIS
+
+    Creates the AAD Application and Identity, in The Partner Tenant, which will be linked from The Customer's Tenant.
+        
+    .DESCRIPTION
+
+    You will be prompted to authenticate.
+    This Cmdlet will output the PartnerIdentityAppId required by Set-ZeroTrustPartnerAdminLink
+        
+    .EXAMPLE
+
+    New-ZeroTrustPartnerAdminLinkPartnerIdentity -PartnerName Contoso -AppNamePrefix "Microsoft-Partner-Admin-Link-Identity"
+        
+    .PARAMETER PartnerName
+
+    The name of the Microsoft Partner who is assigning the PAL. This is appended to the AppNamePrefix to form the AAD Application display name in The Partner's Tenant.
+    This is then visible in The Customer's Tenant. There may be multiple Partners in a Customer Tenant. 
+
+    .PARAMETER AppNamePrefix
+
+    Name of the AAD Application, to be created in the Partner's AAD Tenant.
+
+    .NOTES
+
+    From the example above, this Cmdlet Will generated an identity called "Microsoft-Partner-Admin-Link-Identity-Contoso". 
+    We use the suffix approach as there might be multiple partners who have DPOR in one customer, and this allows them to be grouped together.
+
+    #>
+    Param 
+    (
+        [Parameter(Mandatory=$true)]
+        [string] $PartnerName,
+
+        [Parameter()]
+        [string] $AppNamePrefix = "Microsoft-Partner-Admin-Link-Identity"
+    )
+
+    Write-Host "Login with an account that has permissions to manage AAD applications"
+    
+    Connect-AzAccount
+    Get-AzContext
+    
+    Read-Host "Press Return to Create the PAL Identity in the above tenant. Ctrl-C to Exit."
+
+    $domain = (Get-AzTenant -TenantId (Get-AzContext).Tenant.Id).Domains | Select-Object -First 1
+    $name = "$AppNamePrefix-$PartnerName"
+    $aadApp = New-AzADApplication -DisplayName $name -IdentifierUris @("https://$domain/$Name") -AvailableToOtherTenants $true
+
+    Write-Host "Share the value below with your Customer, as they will need to provide this as the PartnerIdentityAppId parameter to the Set-ZeroTrustPartnerAdminLink Cmdlet."
+    Write-Host "Partner Admin Link ID: $($aadApp.ApplicationId)"
+}
+
+Function Export-CustomerSubscriptionsAsCsvForPartnerAdminLink
+{
+    <#
+    .SYNOPSIS
+
+    Generates a CSV containing all the Azure subscriptions your currently authenticated identity has access to.
+
+    .DESCRIPTION
+
+    Once this file has been generated, remove susbscriptions that are not applicable to have PAL assigned to them.
+    You will be prompted to authenticate.
+
+    .EXAMPLE
+
+    Export-CustomerSubscriptionsAsCsvForPartnerAdminLink -Path .\customer-subs.csv
+
+    .PARAMETER Path
+
+    Path to a CSV file containing the list of Azure Subscriptions that PAL is going to be set on.
+
+    .NOTES
+
+    Use the CSV file created with the Set-ZeroTrustPartnerAdminLink Cmdlet
+    #>
+
+    [CmdletBinding()]
+    Param 
+    (
+        [Parameter()]
+        [string] $Path
+    )
+
+    Connect-AzAccount
+
+    $subscriptions = Get-AzSubscription | Select-Object Name, Id, TenantId
+
+    Write-Host "A file will be generated for the following subscriptions:`n$($subscriptions | Format-Table | out-string)"
+
+    $subscriptions | Export-Csv $Path
+
+    Write-Host "Generated .csv file: $Path"
+}
+
 Function Set-ZeroTrustPartnerAdminLink
 {
     <#
@@ -60,6 +158,7 @@ Function Set-ZeroTrustPartnerAdminLink
 
     # Create a service principal associated with partner identity
     $servicePrincipal = Get-AzADServicePrincipal -ApplicationId $PartnerIdentityAppId
+
     if (!$servicePrincipal) {
         Write-Host "Creating new service principal" -f green
         $servicePrincipal = New-AzADServicePrincipal -ApplicationId $PartnerIdentityAppId -SkipAssignment
@@ -67,10 +166,12 @@ Function Set-ZeroTrustPartnerAdminLink
     else {
         Write-Host "Service principal already exists - continuing" -f green
     }
+
     $servicePrincipalCredential = New-AzADServicePrincipalCredential -ObjectId $servicePrincipal.Id -EndDate ([DateTime]::Now.AddMinutes(10))
 
     # Assign the PAL to each of the required subscriptions
     $subscriptions = Import-Csv $SubscriptionsCsv
+
     Write-Host "`nThe following subscriptions will be registered with the Partner Admin Link:" -f green
     Write-Host ($subscriptions | Format-Table | out-string) -NoNewline
     
@@ -92,6 +193,7 @@ Function Set-ZeroTrustPartnerAdminLink
     }
 
     Write-Host "`nAuthenticating as ZeroTrust PAL service principal..."
+
     $checkCredential = $false
     while(!$checkCredential) {
         Start-Sleep -Seconds 5
@@ -103,6 +205,7 @@ Function Set-ZeroTrustPartnerAdminLink
     [PSCredential]$credential = New-Object System.Management.Automation.PSCredential($servicePrincipal.ApplicationId, $servicePrincipalCredential.Secret)
     Connect-AzAccount -ServicePrincipal -Credential $credential -Tenant $tenantId | Out-Null
     $existingPartner = Get-AzManagementPartner | Where-Object { $_.PartnerId -eq $MpnId }
+
     if (!$existingPartner) {
         Write-Host "`nLinking to MPN ID: $MpnId" -f green
         New-AzManagementPartner -PartnerId $MpnId
@@ -110,104 +213,6 @@ Function Set-ZeroTrustPartnerAdminLink
     else {
         Write-Host "`nMPN ID already linked" -f green
     }
-}
-
-Function Export-CustomerSubscriptionsAsCsvForPartnerAdminLink
-{
-    <#
-    .SYNOPSIS
-
-    Generates a CSV containing all the Azure subscriptions your currently authenticated identity has access to.
-
-    .DESCRIPTION
-
-    Once this file has been generated, remove susbscriptions that are not applicable to have PAL assigned to them.
-    You will be prompted to authenticate.
-
-    .EXAMPLE
-
-    Export-CustomerSubscriptionsAsCsvForPartnerAdminLink -Path .\customer-subs.csv
-
-    .PARAMETER Path
-
-    Path to a CSV file containing the list of Azure Subscriptions that PAL is going to be set on.
-
-    .NOTES
-
-    Use the CSV file created with the Set-ZeroTrustPartnerAdminLink Cmdlet
-    #>
-
-    [CmdletBinding()]
-    Param 
-    (
-        [Parameter()]
-        [string] $Path
-    )
-
-    Connect-AzAccount
-
-    $subscriptions = Get-AzSubscription | Select-Object Name, Id, TenantId
-
-    Write-Host "A file will be generated for the following subscriptions:`n$($subscriptions | Format-Table | out-string)"
-
-    $subscriptions | Export-Csv $Path
-
-    Write-Host "Generated .csv file: $Path"
-}
-
-Function New-ZeroTrustPartnerAdminLinkPartnerIdentity 
-{
-    <#
-    .SYNOPSIS
-
-    Creates the AAD Application and Identity, in The Partner Tenant, which will be linked from The Customer's Tenant.
-        
-    .DESCRIPTION
-
-    You will be prompted to authenticate.
-    This Cmdlet will output the PartnerIdentityAppId required by Set-ZeroTrustPartnerAdminLink
-        
-    .EXAMPLE
-
-    New-ZeroTrustPartnerAdminLinkPartnerIdentity -PartnerName Contoso -AppNamePrefix "Microsoft-Partner-Admin-Link-Identity"
-        
-    .PARAMETER PartnerName
-
-    The name of the Microsoft Partner who is assigning the PAL. This is appended to the AppNamePrefix to form the AAD Application display name in The Partner's Tenant.
-    This is then visible in The Customer's Tenant. There may be multiple Partners in a Customer Tenant. 
-
-    .PARAMETER AppNamePrefix
-
-    Name of the AAD Application, to be created in the Partner's AAD Tenant.
-
-    .NOTES
-
-    From the example above, this Cmdlet Will generated an identity called "Microsoft-Partner-Admin-Link-Identity-Contoso". 
-    We use the suffix approach as there might be multiple partners who have DPOR in one customer, and this allows them to be grouped together.
-
-    #>
-    Param 
-    (
-        [Parameter(Mandatory=$true)]
-        [string] $PartnerName,
-
-        [Parameter()]
-        [string] $AppNamePrefix = "Microsoft-Partner-Admin-Link-Identity"
-    )
-
-    Write-Host "Login with an account that has permissions to manage AAD applications"
-    
-    Connect-AzAccount
-    Get-AzContext
-    
-    Read-Host "Press Return to Create the PAL Identity in the above tenant. Ctrl-C to Exit."
-
-    $domain = (Get-AzTenant -TenantId (Get-AzContext).Tenant.Id).Domains | Select-Object -First 1
-    $name = "$AppNamePrefix-$PartnerName"
-    $aadApp = New-AzADApplication -DisplayName $name -IdentifierUris @("https://$domain/$Name") -AvailableToOtherTenants $true
-
-    Write-Host "Share the value below with your Customer, as they will need to provide this as the PartnerIdentityAppId parameter to the Set-ZeroTrustPartnerAdminLink Cmdlet."
-    Write-Host "Partner Admin Link ID: $($aadApp.ApplicationId)"
 }
 
 $ErrorActionPreference = 'Stop'
