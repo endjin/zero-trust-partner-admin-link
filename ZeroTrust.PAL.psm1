@@ -99,11 +99,15 @@ Function Export-CustomerSubscriptionsAsCsvForPartnerAdminLink
 
     .EXAMPLE
 
-   Export-CustomerSubscriptionsAsCsvForPartnerAdminLink -Path .\customer-subs.csv
+    Export-CustomerSubscriptionsAsCsvForPartnerAdminLink -Path .\customer-subs.csv
+
+    .PARAMETER Path
+
+    Path to a CSV file containing the list of Azure Subscriptions that PAL is going to be set on.
 
     .NOTES
 
-    Use CSV file with the Set-ZeroTrustPartnerAdminLink Cmdlet
+    Use the CSV file created by the Set-ZeroTrustPartnerAdminLink Cmdlet
     #>
 
     [CmdletBinding()]
@@ -149,8 +153,8 @@ Function New-ZeroTrustPartnerAdminLinkPartnerIdentity
 
     .NOTES
 
-    Will generated an identity called "Microsoft-Partner-Admin-Link-Identity-Contoso". 
-    We use the suffix approach as there might be multiple partners who have DPOR in one customer.
+    From the example above, this Cmdlet Will generated an identity called "Microsoft-Partner-Admin-Link-Identity-Contoso". 
+    We use the suffix approach as there might be multiple partners who have DPOR in one customer, and this allows them to be grouped together.
 
     #>
     Param 
