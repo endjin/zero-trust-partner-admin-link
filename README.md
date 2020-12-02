@@ -6,6 +6,36 @@ But operating in this Zero Trust way causes additional complications for partner
 
 This repository provides an approach for configuring Partner Admin Link in a Zero Trust way, that enables the customer to have protected subscriptions, but also allows the partner to prove that their workloads are running in those Zero Trust environments.
 
+## Instructions for The Partner
+
+In a PowerShell Command Prompt:
+
+`Import-Module .\ZeroTrust.PAL.psd1 -force`
+
+Then run:
+
+`New-ZeroTrustPartnerAdminLinkPartnerIdentity -PartnerName <YOUR COMPANY NAME> -AppNamePrefix "Microsoft-Partner-Admin-Link-Identity"`
+
+This will output a guid, which you need to provide to your customer, so they can use it as the `PartnerIdentityAppId` parameter to the `Set-ZeroTrustPartnerAdminLink` Cmdlet, along with your MPN Id
+
+## Instructions for The Customer
+
+In a PowerShell Command Prompt:
+
+`Import-Module .\ZeroTrust.PAL.psd1 -force`
+
+Then run:
+
+`Export-CustomerSubscriptionsAsCsvForPartnerAdminLink -Path .\customer-subs.csv`
+
+Open the `customer-subs.csv` remove any subscriptions that you do not want to assign PAL to for The Partner, and then save the file.
+
+Then run:
+
+`Set-ZeroTrustPartnerAdminLink -PartnerName Contoso -MpnId <PROVIDED BY THE PARTNER> -PartnerIdentityAppId <PARTNERIDENTITYAPPID PROVIDED BY THE PARTNER> -SubscriptionsCsv .\customer-subs.csv`
+
+When prompted, you will need to authenticate.
+
 ## Licenses
 
 [![GitHub license](https://img.shields.io/badge/License-Apache%202-blue.svg)](https://github.com/endjin/zero-trust-partner-admin-link/blob/main/LICENSE)
