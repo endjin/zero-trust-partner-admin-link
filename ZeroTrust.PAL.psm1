@@ -177,5 +177,6 @@ Function New-ZeroTrustPartnerAdminLinkPartnerIdentity
     $name = "$AppNamePrefix-$PartnerName"
     $aadApp = New-AzADApplication -DisplayName $name -IdentifierUris @("https://$domain/$Name") -AvailableToOtherTenants $true
 
+    Write-Host "Share the value below with your Customer, as they will need to provide this as the PartnerIdentityAppId parameter to the Set-ZeroTrustPartnerAdminLink Cmdlet."
     Write-Host "Partner Admin Link ID: $($aadApp.ApplicationId)"
 }
