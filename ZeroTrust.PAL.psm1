@@ -49,39 +49,67 @@ Function Set-ZeroTrustPartnerAdminLink
         [string] $MpnId
     )
 
-    $ErrorActionPreference = 'Stop'
-
     if (!(Get-Module -ListAvailable Az)) 
     {
         Install-Module Az -AllowClobber -Repository PSGallery -Force -Scope CurrentUser
     }
 
-    Write-Host "Login with an account that has permissions to manage AAD applications and perform ARM role assignments"
-    Connect-AzAccount
+    Write-Host "Login with an account that has permissions to manage AAD applications and perform ARM role assignments" -f green
+    Read-Host "Press <RETURN> to continue, <CTRL-C> to cancel" | Out-Null
+    Connect-AzAccount | Out-String | Write-Host -NoNewline
 
     # Create a service principal associated with partner identity
-    $customerSp = New-AzADServicePrincipal -DisplayName "$PartnerName Partner Admin Link - DO NOT DELETE" -ApplicationId $PartnerIdentityAppId -SkipAssignment
-    $customerSpCredential = New-AzADServicePrincipalCredential -ObjectId $customerSp.Id
+    $servicePrincipal = Get-AzADServicePrincipal -ApplicationId $PartnerIdentityAppId
+    if (!$servicePrincipal) {
+        Write-Host "Creating new service principal" -f green
+        $servicePrincipal = New-AzADServicePrincipal -ApplicationId $PartnerIdentityAppId -SkipAssignment
+    }
+    else {
+        Write-Host "Service principal already exists - continuing" -f green
+    }
+    $servicePrincipalCredential = New-AzADServicePrincipalCredential -ObjectId $servicePrincipal.Id -EndDate ([DateTime]::Now.AddMinutes(10))
 
     # Assign the PAL to each of the required subscriptions
     $subscriptions = Import-Csv $SubscriptionsCsv
-    Write-Host "The following subscriptions will be registered with the Partner Admin Link:`n$($subscriptions | Format-Table | out-string)"
+    Write-Host "`nThe following subscriptions will be registered with the Partner Admin Link:" -f green
+    Write-Host ($subscriptions | Format-Table | out-string) -NoNewline
     
-    $subscriptions | ForEach-Object 
-    {
-        New-AzRoleAssignment -ObjectId $customerSp.Id -RoleDefinitionName "Contributor" -Scope "/subscriptions/$_"
+    $subscriptions | ForEach-Object {
+        $existingAssignment = Get-AzRoleAssignment -ObjectId $servicePrincipal.Id -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)"
+        if (!$existingAssignment) {
+            Write-Host "Assigning 'Contributor' role to subscription: $($_.Id)" -f green
+            New-AzRoleAssignment -ObjectId $servicePrincipal.Id -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)" | Out-Null
+        }
+        else {
+            Write-Host "'Contributor' role already assigned to subscription: $($_.Id)" -f green
+        }
     }
 
     # Login with the above service principal and associate the account to the specified MS Partner ID
     if (!(Get-Module -ListAvailable Az.ManagementPartner)) 
     {
-        Install-Module Az.ManagementPartner -Repository PSGallery -Force -Scope CurrentUser
+        Install-Module Az.ManagementPartner -Repository PSGallery -Force -Scope CurrentUser | Out-Null
     }
 
-    [PSCredential]$credential = New-Object System.Management.Automation.PSCredential($customerSp.ApplicationId, $customerSpCredential.Secret)
-
-    Connect-AzAccount -ServicePrincipal -Credential $credential -Tenant (Get-AzContext).Tenant
-    New-AzManagementPartner -PartnerId $MpnId
+    Write-Host "`nAuthenticating as ZeroTrust PAL service principal..."
+    $checkCredential = $false
+    while(!$checkCredential) {
+        Start-Sleep -Seconds 5
+        $checkCredential = Get-AzADServicePrincipalCredential -ObjectId $servicePrincipal.Id | ? { $_.KeyId -eq $servicePrincipalCredential.KeyId }
+    }
+    # logout of previous session
+    $tenantId = (Get-AzContext).Tenant.Id
+    Disconnect-AzAccount | Out-Null
+    [PSCredential]$credential = New-Object System.Management.Automation.PSCredential($servicePrincipal.ApplicationId, $servicePrincipalCredential.Secret)
+    Connect-AzAccount -ServicePrincipal -Credential $credential -Tenant $tenantId | Out-Null
+    $existingPartner = Get-AzManagementPartner | Where-Object { $_.PartnerId -eq $MpnId }
+    if (!$existingPartner) {
+        Write-Host "`nLinking to MPN ID: $MpnId" -f green
+        New-AzManagementPartner -PartnerId $MpnId
+    }
+    else {
+        Write-Host "`nMPN ID already linked" -f green
+    }
 }
 
 Function Export-CustomerSubscriptionsAsCsvForPartnerAdminLink
@@ -180,4 +208,13 @@ Function New-ZeroTrustPartnerAdminLinkPartnerIdentity
 
     Write-Host "Share the value below with your Customer, as they will need to provide this as the PartnerIdentityAppId parameter to the Set-ZeroTrustPartnerAdminLink Cmdlet."
     Write-Host "Partner Admin Link ID: $($aadApp.ApplicationId)"
+}
+
+$ErrorActionPreference = 'Stop'
+
+if (!(Get-Module -ListAvailable Az)) {
+    Write-Host "Az PowerShell modules are required"
+    Write-Host "They will be installed with:`n`tInstall-Module Az -AllowClobber -Repository PSGallery -Force -Scope CurrentUser"
+    Write-Host "This may take a few minutes..."
+    Install-Module Az -AllowClobber -Repository PSGallery -Force -Scope CurrentUser
 }
