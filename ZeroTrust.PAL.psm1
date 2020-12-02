@@ -137,6 +137,7 @@ Function New-ZeroTrustPartnerAdminLinkPartnerIdentity
     .DESCRIPTION
 
     You will be prompted to authenticate.
+    This Cmdlet will output the PartnerIdentityAppId required by Set-ZeroTrustPartnerAdminLink
         
     .EXAMPLE
 
