@@ -18,9 +18,9 @@ The process for creating a Zero Trust Partner Admin Link is as follows
 
 We can automate this process by encapsulating it in three PowerShell Cmdlets packaged as a module on the [PowerShell Gallery](https://www.powershellgallery.com/).
 
-`New-ZeroTrustPartnerAdminLinkPartnerIdentity` - run by the Partner to generate the "root" identity in the Partner Tenant. This forms the connection between the Partner and the Customer. 
-`Export-CustomerSubscriptionsAsCsvForPartnerAdminLink` - run by the customer to generate a CSV file listing their Azure Subscriptions. They can edit to remove 
-`Set-ZeroTrustPartnerAdminLink`
+`New-ZeroTrustPartnerAdminLinkPartnerIdentity` - run by The Partner to generate the Enterprise Application "root" identity in the Partner Tenant. This forms the connection between the Partner and the Customer. 
+`Export-CustomerSubscriptionsAsCsvForPartnerAdminLink` - run by The Customer to generate a CSV file listing their Azure Subscriptions. They can edit to remove.
+`Set-ZeroTrustPartnerAdminLink` - run by The Customer to create the Service Principal linked to The Partner's Enteprise Application, and then reset credentials.
 
 ## Consequences
 
