@@ -1,58 +1,3 @@
-Function New-ZeroTrustPartnerAdminLinkPartnerIdentity 
-{
-    <#
-    .SYNOPSIS
-
-    Creates the AAD Application and Identity, in The Partner Tenant, which will be linked from The Customer's Tenant.
-        
-    .DESCRIPTION
-
-    You will be prompted to authenticate.
-    This Cmdlet will output the PartnerIdentityAppId required by Set-ZeroTrustPartnerAdminLink
-        
-    .EXAMPLE
-
-    New-ZeroTrustPartnerAdminLinkPartnerIdentity -PartnerName Contoso -AppNamePrefix "Microsoft-Partner-Admin-Link-Identity"
-        
-    .PARAMETER PartnerName
-
-    The name of the Microsoft Partner who is assigning the PAL. This is appended to the AppNamePrefix to form the AAD Application display name in The Partner's Tenant.
-    This is then visible in The Customer's Tenant. There may be multiple Partners in a Customer Tenant. 
-
-    .PARAMETER AppNamePrefix
-
-    Name of the AAD Application, to be created in the Partner's AAD Tenant.
-
-    .NOTES
-
-    From the example above, this Cmdlet Will generated an identity called "Microsoft-Partner-Admin-Link-Identity-Contoso". 
-    We use the suffix approach as there might be multiple partners who have DPOR in one customer, and this allows them to be grouped together.
-
-    #>
-    Param 
-    (
-        [Parameter(Mandatory=$true)]
-        [string] $PartnerName,
-
-        [Parameter()]
-        [string] $AppNamePrefix = "Microsoft-Partner-Admin-Link-Identity"
-    )
-
-    Write-Host "Login with an account that has permissions to manage AAD applications"
-    
-    Connect-AzAccount
-    Get-AzContext
-    
-    Read-Host "Press Return to Create the PAL Identity in the above tenant. Ctrl-C to Exit."
-
-    $domain = (Get-AzTenant -TenantId (Get-AzContext).Tenant.Id).Domains | Select-Object -First 1
-    $name = "$AppNamePrefix-$PartnerName"
-    $aadApp = New-AzADApplication -DisplayName $name -IdentifierUris @("https://$domain/$Name") -AvailableToOtherTenants $true
-
-    Write-Host "Share the value below with your Customer, as they will need to provide this as the PartnerIdentityAppId parameter to the Set-ZeroTrustPartnerAdminLink Cmdlet."
-    Write-Host "Partner Admin Link ID: $($aadApp.ApplicationId)"
-}
-
 Function Export-CustomerSubscriptionsAsCsvForPartnerAdminLink
 {
     <#
@@ -107,7 +52,7 @@ Function Set-ZeroTrustPartnerAdminLink
         
     .EXAMPLE
 
-    Set-ZeroTrustPartnerAdminLink -PartnerName Contoso -MpnId 12345678 -PartnerIdentityAppId 2038cf8a-8086-4b02-809f-28ecc24c60a3 -SubscriptionsCsv .\customer-subs.csv
+    Set-ZeroTrustPartnerAdminLink -PartnerName Contoso -MpnId 12345678 -SubscriptionsCsv .\customer-subs.csv
         
     .PARAMETER SubscriptionsCsv
 
@@ -117,16 +62,18 @@ Function Set-ZeroTrustPartnerAdminLink
     .PARAMETER PartnerName
 
     Name of the Microsoft Partner which is going to be assigned PAL. 
-    This is used for displaying The Partner's name in the Service Principal in The Customer's Tenant.
-
-    .PARAMETER PartnerIdentityAppId
-
-    The Application Id of The Partner's PAL AAD Application in The Partner's Tenant.
+    This is used for displaying The Partner's name in the AAD Application registration in The Customer's Tenant.
 
     .PARAMETER MpnId
 
     Microsoft Partner's Microsoft Partner Network Id. 
     This should be the Location or HQ based Id and not a Virtual Org.
+
+    .PARAMETER AppNamePrefix
+
+    The naming-convention prefix of the AAD Application, to be created in the Customer's AAD Tenant.
+    Defaults to "Microsoft-Partner-Admin-Link-Identity", resulting in applications with the following
+    naming convention "Microsoft-Partner-Admin-Link-Identity-<PartnerName>"
 
     .NOTES
     #>
@@ -141,10 +88,10 @@ Function Set-ZeroTrustPartnerAdminLink
         [string] $PartnerName,
 
         [Parameter(Mandatory=$true)]
-        [guid] $PartnerIdentityAppId,
+        [string] $MpnId,
 
-        [Parameter(Mandatory=$true)]
-        [string] $MpnId
+        [Parameter()]
+        [string] $AppNamePrefix = "Microsoft-Partner-Admin-Link-Identity"
     )
 
     if (!(Get-Module -ListAvailable Az)) 
@@ -156,18 +103,16 @@ Function Set-ZeroTrustPartnerAdminLink
     Read-Host "Press <RETURN> to continue, <CTRL-C> to cancel" | Out-Null
     Connect-AzAccount | Out-String | Write-Host -NoNewline
 
-    # Create a service principal associated with partner identity
-    $servicePrincipal = Get-AzADServicePrincipal -ApplicationId $PartnerIdentityAppId
-
-    if (!$servicePrincipal) {
-        Write-Host "Creating new service principal" -f green
-        $servicePrincipal = New-AzADServicePrincipal -ApplicationId $PartnerIdentityAppId -SkipAssignment
+    # Generate an AAD application to represent the Partner organisation
+    $name = "$AppNamePrefix-$PartnerName"
+    $partnerApp = Get-AzADApplication -DisplayName $name
+    if (!$partnerApp) {
+        $domain = (Get-AzTenant -TenantId (Get-AzContext).Tenant.Id).Domains | Select-Object -First 1
+        $partnerApp = New-AzADApplication -DisplayName $name -IdentifierUris @("https://$domain/$name")
     }
-    else {
-        Write-Host "Service principal already exists - continuing" -f green
-    }
-
-    $servicePrincipalCredential = New-AzADServicePrincipalCredential -ObjectId $servicePrincipal.Id -EndDate ([DateTime]::Now.AddMinutes(10))
+    # Create a short-lived client secret for the Partner application
+    $secret = (New-Guid).Guid | ConvertTo-SecureString -AsPlainText
+    $clientSecret = New-AzADAppCredential -ObjectId $partnerApp.ObjectId -Password $secret -EndDate ([DateTime]::Now.AddMinutes(10))
 
     # Assign the PAL to each of the required subscriptions
     $subscriptions = Import-Csv $SubscriptionsCsv
@@ -176,10 +121,10 @@ Function Set-ZeroTrustPartnerAdminLink
     Write-Host ($subscriptions | Format-Table | out-string) -NoNewline
     
     $subscriptions | ForEach-Object {
-        $existingAssignment = Get-AzRoleAssignment -ObjectId $servicePrincipal.Id -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)"
+        $existingAssignment = Get-AzRoleAssignment -ObjectId $partnerApp.ObjectId -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)"
         if (!$existingAssignment) {
             Write-Host "Assigning 'Contributor' role to subscription: $($_.Id)" -f green
-            New-AzRoleAssignment -ObjectId $servicePrincipal.Id -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)" | Out-Null
+            New-AzRoleAssignment -ObjectId $partnerApp.ObjectId -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)" | Out-Null
         }
         else {
             Write-Host "'Contributor' role already assigned to subscription: $($_.Id)" -f green
@@ -197,15 +142,18 @@ Function Set-ZeroTrustPartnerAdminLink
     $checkCredential = $false
     while(!$checkCredential) {
         Start-Sleep -Seconds 5
-        $checkCredential = Get-AzADServicePrincipalCredential -ObjectId $servicePrincipal.Id | ? { $_.KeyId -eq $servicePrincipalCredential.KeyId }
+        $checkCredential = Get-AzADAppCredential -ObjectId $partnerApp.ObjectId | Where-Object { $_.KeyId -eq $clientSecret.KeyId }
     }
     # logout of previous session
     $tenantId = (Get-AzContext).Tenant.Id
     Disconnect-AzAccount | Out-Null
-    [PSCredential]$credential = New-Object System.Management.Automation.PSCredential($servicePrincipal.ApplicationId, $servicePrincipalCredential.Secret)
-    Connect-AzAccount -ServicePrincipal -Credential $credential -Tenant $tenantId | Out-Null
-    $existingPartner = Get-AzManagementPartner | Where-Object { $_.PartnerId -eq $MpnId }
 
+    # login as the Partner AAD Application identity
+    [PSCredential]$credential = New-Object System.Management.Automation.PSCredential($partnerApp.ApplicationId, $secret)
+    Connect-AzAccount -ServicePrincipal -Credential $credential -Tenant $tenantId | Out-Null
+    
+    # link the Partner's MPN ID
+    $existingPartner = Get-AzManagementPartner | Where-Object { $_.PartnerId -eq $MpnId }
     if (!$existingPartner) {
         Write-Host "`nLinking to MPN ID: $MpnId" -f green
         New-AzManagementPartner -PartnerId $MpnId
@@ -213,6 +161,8 @@ Function Set-ZeroTrustPartnerAdminLink
     else {
         Write-Host "`nMPN ID already linked" -f green
     }
+
+    Disconnect-AzAccount | Out-Null
 }
 
 $ErrorActionPreference = 'Stop'
