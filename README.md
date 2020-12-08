@@ -8,7 +8,7 @@ This repository provides an approach for configuring Partner Admin Link in a Zer
 
 ## Instructions for The Partner
 
-Share your MPN Id with the Customer.
+Share your MPN Id with the Customer, this should be the Location or HQ based Id and not a Virtual Org.
 
 ## Instructions for The Customer
 
@@ -28,7 +28,28 @@ Then run:
 
 `Set-ZeroTrustPartnerAdminLink -PartnerName Contoso -MpnId <PROVIDED BY THE PARTNER> -SubscriptionsCsv .\customer-subs.csv`
 
-When prompted, you will need to authenticate as an account that has permissions to manage AAD applications and perform ARM role assignments across the subscriptions in the above file.
+When prompted, you will need to authenticate as an account that has permissions to manage Azure Active Directory (AAD) applications and perform ARM role assignments across the subscriptions in the above file.
+
+### Optional Parameters
+
+| Name | Description | Default |
+|------|-------------|---------|
+|Role|Controls which role is assigned to the AAD identity that links the Partner. Valid options: `Owner`, `Contributor` or `Support Request Contributor`|Support Request Contributor|
+|AppNamePrefix|Used to name the AAD Application with the convention '\<AppNamePrefix>-\<PartnerName>' (e.g. `Microsoft-Partner-Admin-Link-Identity-Contoso`) |Microsoft-Partner-Admin-Link-Identity|
+
+## How does this Achieve Zero-Trust?
+
+* The Partner requires no access to the Customer tenant as part of the linking process that signifies Partner contribution
+* The credentials associated with the AAD Application that links the Partner contribution expire after 10 minutes, and are not exposed outside the automated process
+* The Customer retains full control over the AAD identity that links the Partner contribution and, if necessary, can easily break the link by deleting the AAD Application
+
+## Disclaimer
+
+The process described in this repository is not an officially sanctioned Microsoft approach.
+
+## Caveat Emptor
+
+This is an open-source project that aims to address the issues of enabling Microsoft's Partner Admin Link in Zero-Trust environments.  You should perform your own due diligence on whether the approach is consistent with your organisation's security posture & policies.
 
 ## Licenses
 

@@ -24,6 +24,7 @@ We can automate this process by encapsulating it in two PowerShell Cmdlets packa
 ## Consequences
 
 The Partner has an identity in each Customer which is used to configure PAL.
-The Customer has a clearly named AAD Application which they control, which signifies Partner Contribution.
+The Customer has a clearly named AAD Application which they control that signifies Partner Contribution.
+The ephemeral credentials associated with the above AAD Application are short-lived and not exposed outside the automated process.
 The Partner has no access to the necessarily privileged Application identity, thus satisfying the Zero Trust requirement.
 Microsoft can see the relationship between The Customer and The Partner.
