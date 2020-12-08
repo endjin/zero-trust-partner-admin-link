@@ -8,15 +8,7 @@ This repository provides an approach for configuring Partner Admin Link in a Zer
 
 ## Instructions for The Partner
 
-In a PowerShell Command Prompt:
-
-`Import-Module .\ZeroTrust.PAL.psd1 -force`
-
-Then run:
-
-`New-ZeroTrustPartnerAdminLinkPartnerIdentity -PartnerName <YOUR COMPANY NAME> -AppNamePrefix "Microsoft-Partner-Admin-Link-Identity"`
-
-This will output a guid, which you need to provide to your customer, so they can use it as the `PartnerIdentityAppId` parameter to the `Set-ZeroTrustPartnerAdminLink` Cmdlet, along with your MPN Id
+Share your MPN Id with the Customer.
 
 ## Instructions for The Customer
 
@@ -28,13 +20,15 @@ Then run:
 
 `Export-CustomerSubscriptionsAsCsvForPartnerAdminLink -Path .\customer-subs.csv`
 
+When prompted, you will need to authenticate.
+
 Open the `customer-subs.csv` remove any subscriptions that you do not want to assign PAL to for The Partner, and then save the file.
 
 Then run:
 
-`Set-ZeroTrustPartnerAdminLink -PartnerName Contoso -MpnId <PROVIDED BY THE PARTNER> -PartnerIdentityAppId <PARTNERIDENTITYAPPID PROVIDED BY THE PARTNER> -SubscriptionsCsv .\customer-subs.csv`
+`Set-ZeroTrustPartnerAdminLink -PartnerName Contoso -MpnId <PROVIDED BY THE PARTNER> -SubscriptionsCsv .\customer-subs.csv`
 
-When prompted, you will need to authenticate.
+When prompted, you will need to authenticate as an account that has permissions to manage AAD applications and perform ARM role assignments across the subscriptions in the above file.
 
 ## Licenses
 
