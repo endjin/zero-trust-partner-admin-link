@@ -69,6 +69,11 @@ Function Set-ZeroTrustPartnerAdminLink
     Microsoft Partner's Microsoft Partner Network Id. 
     This should be the Location or HQ based Id and not a Virtual Org.
 
+    .PARAMETER Role
+
+    The Azure Resource Manager role that will be assigned to the AAD Application for each subscription.
+    Defaults to 'Support Request Contributor'
+    
     .PARAMETER AppNamePrefix
 
     The naming-convention prefix of the AAD Application, to be created in the Customer's AAD Tenant.
@@ -89,6 +94,10 @@ Function Set-ZeroTrustPartnerAdminLink
 
         [Parameter(Mandatory=$true)]
         [string] $MpnId,
+
+        [Parameter()]
+        [ValidateSet("Owner","Contributor","Support Request Contributor")] 
+        [string] $Role = "Support Request Contributor",
 
         [Parameter()]
         [string] $AppNamePrefix = "Microsoft-Partner-Admin-Link-Identity"
@@ -124,7 +133,7 @@ Function Set-ZeroTrustPartnerAdminLink
         $existingAssignment = Get-AzRoleAssignment -ObjectId $partnerApp.ObjectId -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)"
         if (!$existingAssignment) {
             Write-Host "Assigning 'Contributor' role to subscription: $($_.Id)" -f green
-            New-AzRoleAssignment -ObjectId $partnerApp.ObjectId -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)" | Out-Null
+            New-AzRoleAssignment -ObjectId $partnerApp.ObjectId -RoleDefinitionName $Role -Scope "/subscriptions/$($_.Id)" | Out-Null
         }
         else {
             Write-Host "'Contributor' role already assigned to subscription: $($_.Id)" -f green
