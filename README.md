@@ -45,7 +45,11 @@ When prompted, you will need to authenticate as an account that has permissions 
 
 ## Disclaimer
 
-The process described in this repository is not an officially sanctioned Microsoft approach.
+Whilst this automated process has been built using the available guidance from Microsoft (see links below), this repository does not represent an officially sanctioned Microsoft approach.
+
+* https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/link-partner-id
+* https://partner.microsoft.com/en-US/resources/collection/partner-admin-link#/
+
 
 ## Caveat Emptor
 
