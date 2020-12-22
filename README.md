@@ -6,6 +6,55 @@ But operating in this Zero Trust way causes additional complications for partner
 
 This repository provides an approach for configuring Partner Admin Link in a Zero Trust way, that enables the customer to have protected subscriptions, but also allows the partner to prove that their workloads are running in those Zero Trust environments.
 
+## Instructions for The Partner
+
+Share your MPN Id with the Customer, this should be the Location or HQ based Id and not a Virtual Org.
+
+## Instructions for The Customer
+
+In a PowerShell Command Prompt:
+
+`Import-Module .\ZeroTrust.PAL.psd1 -force`
+
+Then run:
+
+`Export-CustomerSubscriptionsAsCsvForPartnerAdminLink -Path .\customer-subs.csv`
+
+When prompted, you will need to authenticate.
+
+Open the `customer-subs.csv` remove any subscriptions that you do not want to assign PAL to for The Partner, and then save the file.
+
+Then run:
+
+`Set-ZeroTrustPartnerAdminLink -PartnerName Contoso -MpnId <PROVIDED BY THE PARTNER> -SubscriptionsCsv .\customer-subs.csv`
+
+When prompted, you will need to authenticate as an account that has permissions to manage Azure Active Directory (AAD) applications and perform ARM role assignments across the subscriptions in the above file.
+
+### Optional Parameters
+
+| Name | Description | Default |
+|------|-------------|---------|
+|Role|Controls which role is assigned to the AAD identity that links the Partner. Valid options: `Owner`, `Contributor` or `Support Request Contributor`|Support Request Contributor|
+|AppNamePrefix|Used to name the AAD Application with the convention '\<AppNamePrefix>-\<PartnerName>' (e.g. `Microsoft-Partner-Admin-Link-Identity-Contoso`) |Microsoft-Partner-Admin-Link-Identity|
+
+## How does this Achieve Zero-Trust?
+
+* The Partner requires no access to the Customer tenant as part of the linking process that signifies Partner contribution
+* The credentials associated with the AAD Application that links the Partner contribution expire after 10 minutes, and are not exposed outside the automated process
+* The Customer retains full control over the AAD identity that links the Partner contribution and, if necessary, can easily break the link by deleting the AAD Application
+
+## Disclaimer
+
+Whilst this automated process has been built using the available guidance from Microsoft (see links below), this repository does not represent an officially sanctioned Microsoft approach.
+
+* https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/link-partner-id
+* https://partner.microsoft.com/en-US/resources/collection/partner-admin-link#/
+
+
+## Caveat Emptor
+
+This is an open-source project that aims to address the issues of enabling Microsoft's Partner Admin Link in Zero-Trust environments.  You should perform your own due diligence on whether the approach is consistent with your organisation's security posture & policies.
+
 ## Licenses
 
 [![GitHub license](https://img.shields.io/badge/License-Apache%202-blue.svg)](https://github.com/endjin/zero-trust-partner-admin-link/blob/main/LICENSE)
