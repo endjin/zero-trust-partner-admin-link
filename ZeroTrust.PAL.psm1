@@ -119,6 +119,14 @@ Function Set-ZeroTrustPartnerAdminLink
         $domain = (Get-AzTenant -TenantId (Get-AzContext).Tenant.Id).Domains | Select-Object -First 1
         $partnerApp = New-AzADApplication -DisplayName $name -IdentifierUris @("https://$domain/$name")
     }
+
+    # The role assignments will require a service principal associated with the Partner application
+    $partnerSp = Get-AzADServicePrincipal -ApplicationId $partnerApp.ApplicationId
+    if (!$partnerSp) {
+        # Create an associated service principal if the application doesn't have one
+        $partnerSp = $partnerApp | New-AzADServicePrincipal
+    }
+
     # Create a short-lived client secret for the Partner application
     $secret = (New-Guid).Guid | ConvertTo-SecureString -AsPlainText
     $clientSecret = New-AzADAppCredential -ObjectId $partnerApp.ObjectId -Password $secret -EndDate ([DateTime]::Now.AddMinutes(10))
@@ -128,15 +136,15 @@ Function Set-ZeroTrustPartnerAdminLink
 
     Write-Host "`nThe following subscriptions will be registered with the Partner Admin Link:" -f green
     Write-Host ($subscriptions | Format-Table | out-string) -NoNewline
-    
+
     $subscriptions | ForEach-Object {
-        $existingAssignment = Get-AzRoleAssignment -ObjectId $partnerApp.ObjectId -RoleDefinitionName "Contributor" -Scope "/subscriptions/$($_.Id)"
+        $existingAssignment = Get-AzRoleAssignment -ObjectId $partnerSp.Id -RoleDefinitionName $Role -Scope "/subscriptions/$($_.Id)"
         if (!$existingAssignment) {
-            Write-Host "Assigning 'Contributor' role to subscription: $($_.Id)" -f green
-            New-AzRoleAssignment -ObjectId $partnerApp.ObjectId -RoleDefinitionName $Role -Scope "/subscriptions/$($_.Id)" | Out-Null
+            Write-Host "Assigning '$Role' role to subscription: $($_.Id)" -f green
+            New-AzRoleAssignment -ObjectId $partnerSp.Id -RoleDefinitionName $Role -Scope "/subscriptions/$($_.Id)" | Out-Null
         }
         else {
-            Write-Host "'Contributor' role already assigned to subscription: $($_.Id)" -f green
+            Write-Host "'$Role' role already assigned to subscription: $($_.Id)" -f green
         }
     }
 
@@ -146,7 +154,15 @@ Function Set-ZeroTrustPartnerAdminLink
         Install-Module Az.ManagementPartner -Repository PSGallery -Force -Scope CurrentUser | Out-Null
     }
 
-    Write-Host "`nAuthenticating as ZeroTrust PAL service principal..."
+    Write-Host "`nWaiting 60 secs to ensure temporary credentials are fully available for use"
+    $timer = 0
+    while ($timer -lt 12) {
+        Write-Host -NoNewline "."
+        Start-Sleep -Seconds 5
+        $timer++
+    }
+
+    Write-Host "`n`nAuthenticating as ZeroTrust PAL service principal..."
 
     $checkCredential = $false
     while(!$checkCredential) {
@@ -162,7 +178,7 @@ Function Set-ZeroTrustPartnerAdminLink
     Connect-AzAccount -ServicePrincipal -Credential $credential -Tenant $tenantId | Out-Null
     
     # link the Partner's MPN ID
-    $existingPartner = Get-AzManagementPartner | Where-Object { $_.PartnerId -eq $MpnId }
+    $existingPartner = Get-AzManagementPartner -ErrorAction SilentlyContinue | Where-Object { $_.PartnerId -eq $MpnId }
     if (!$existingPartner) {
         Write-Host "`nLinking to MPN ID: $MpnId" -f green
         New-AzManagementPartner -PartnerId $MpnId
@@ -174,6 +190,7 @@ Function Set-ZeroTrustPartnerAdminLink
     Disconnect-AzAccount | Out-Null
 }
 
+Set-StrictMode -Version 4
 $ErrorActionPreference = 'Stop'
 
 if (!(Get-Module -ListAvailable Az)) {
