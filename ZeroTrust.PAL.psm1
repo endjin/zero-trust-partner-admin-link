@@ -121,15 +121,15 @@ Function Set-ZeroTrustPartnerAdminLink
     }
 
     # The role assignments will require a service principal associated with the Partner application
-    $partnerSp = Get-AzADServicePrincipal -ApplicationId $partnerApp.ApplicationId
+    $partnerSp = Get-AzADServicePrincipal -AppId $partnerApp.AppId
     if (!$partnerSp) {
         # Create an associated service principal if the application doesn't have one
         $partnerSp = $partnerApp | New-AzADServicePrincipal
     }
 
     # Create a short-lived client secret for the Partner application
-    $secret = (New-Guid).Guid | ConvertTo-SecureString -AsPlainText
-    $clientSecret = New-AzADAppCredential -ObjectId $partnerApp.ObjectId -Password $secret -EndDate ([DateTime]::Now.AddMinutes(10))
+    Write-Host "Creating short-lived client secret for Partner application registration (expires in 10 minutes)" -f cyan
+    $clientSecret = $partnerApp | New-AzADAppCredential -EndDate ([DateTime]::Now.AddMinutes(10))
 
     # Assign the PAL to each of the required subscriptions
     $subscriptions = Import-Csv $SubscriptionsCsv
@@ -167,14 +167,14 @@ Function Set-ZeroTrustPartnerAdminLink
     $checkCredential = $false
     while(!$checkCredential) {
         Start-Sleep -Seconds 5
-        $checkCredential = Get-AzADAppCredential -ObjectId $partnerApp.ObjectId | Where-Object { $_.KeyId -eq $clientSecret.KeyId }
+        $checkCredential = Get-AzADAppCredential -ObjectId $partnerApp.Id | Where-Object { $_.KeyId -eq $clientSecret.KeyId }
     }
     # logout of previous session
     $tenantId = (Get-AzContext).Tenant.Id
     Disconnect-AzAccount | Out-Null
 
     # login as the Partner AAD Application identity
-    [PSCredential]$credential = New-Object System.Management.Automation.PSCredential($partnerApp.ApplicationId, $secret)
+    [PSCredential]$credential = New-Object System.Management.Automation.PSCredential($partnerApp.AppId, (ConvertTo-SecureString $clientSecret.SecretText -AsPlainText))
     Connect-AzAccount -ServicePrincipal -Credential $credential -Tenant $tenantId | Out-Null
     
     # link the Partner's MPN ID
